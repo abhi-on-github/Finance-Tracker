@@ -3,9 +3,8 @@
 	FT.Models = {};
 	FT.Collections = {};
 	FT.Views = {};
-	FT.Data = {}	//Transaction Data/Object
 	/**
-	Transaction Model
+		Transaction Model
 	**/
 	FT.Models.Transaction = Backbone.Model.extend({
 		defaults: {
@@ -13,6 +12,11 @@
 			amount: 50,
 			description: 'I spent at bar',
 			category: 'Drink'
+		},
+		validate: function(attrs){
+			if( ! $.trim(attrs.amount)){
+				return 'A Transaction requires a valid amount';
+			}
 		}
 	});
 	/**
@@ -26,22 +30,23 @@
 	**/
 	FT.Views.Transactions = Backbone.View.extend({
 		template: _.template(
-			"<br /><div id='add-view'></table>"+
-			"<table border=1><tr><th>Type of Transaction</th><th>Amount</th><th>Description</th><th>Category</tr>"),
+			"<table border=1><tr><th>Type of Transaction</th><th>Amount</th><th>Description</th><th>Category</tr>"+
+			"<br /><div id='add-view'>"),
 		initialize: function(){
-			this.collection.on("add", this.render, this);
+			this.collection.on("add", this.addOne, this);
 			this.$el.html(this.template());
 			var addTransactionView = new FT.Views.AddTransaction({collection: this.collection});
-			this.$('#add-view').append(addTransactionView.el);
-			this.render();
+			this.$('#add-view').append(addTransactionView.render().el);
 		},
 		render: function(){
 			var that= this;
 			this.$el.find('.transaction-model-view').remove();
-			this.collection.each(function(transaction){
-				var transactionView = new FT.Views.Transaction({model: transaction});
-				that.$el.find('tbody').append(transactionView.el);
-			});
+			this.collection.each(this.addOne, this);
+			return this;
+		},
+		addOne: function(transaction){
+			var transactionView = new FT.Views.Transaction({model: transaction});
+			this.$el.find('tbody').append(transactionView.render().el);
 		}
 	});
 	/**
@@ -50,15 +55,30 @@
 	FT.Views.Transaction = Backbone.View.extend({
 		className:'transaction-model-view',
 		tagName: 'tr',
-		template: _.template("<td><%=type%></td><td><%=amount%></td><td><%=description%></td><td><%=category %></td>"),
+		template: _.template("<td><%=type%></td><td><%=amount%></td><td><%=description%></td><td><%=category %></td>"+
+			"<td><button id='edit'>Edit</button></td><td><button id='delete'>Delete</button></td>"),
 		initialize: function(){
-			this.render();
+			this.model.on('change', this.render, this);
+			this.model.on('destroy', this.removeView, this);
+		},
+		events:{
+			'click #delete' : 'remove',
+			'click #edit': 'editTransaction'
 		},
 		render: function(){
 			this.$el.html(this.template(this.model.toJSON()));
+			return this;
 		},
-		error: function(model, error){
-			alert(error);
+		editTransaction: function(){
+			var newTransaction = prompt("Amount: ", this.model.get('amount'));
+			if(!newTransaction) return;
+			this.model.set('amount', newTransaction);
+		},
+		remove: function(){
+			this.model.destroy();
+		},
+		removeView: function(){
+			this.$el.remove();
 		}
 	});
 	/**
@@ -69,17 +89,15 @@
 			"<input id='description' placeholder='Description' type='text' />"+
 			"<input id='amount' placeholder='Amount' type='number	' />"+
 			"<select id='category'><option>Food</option><option>Drink</option><option>Entertainment</option><option>Paycheck</option></select>"+
-			"<button id = 'save'>Save</button></form>"),
-		initialize: function(){
-			this.render();
-		},
+			"<button>Save</button></form>"),
 		events: {
-			'click #save': 'save'
+			'submit': 'submit'
 		},
 		render:function(){
 			this.$el.html(this.template());
+			return this;
 		},
-		save: function(e){
+		submit: function(e){
 			e.preventDefault();
 			//get values from template
 			var type = this.$('#type').val(),
@@ -87,12 +105,13 @@
 				amount = this.$('#amount').val(),
 				category = this.$('#category').val();
 			//save it to the collection3
-			this.collection.add({
+			var newTransaction = new FT.Models.Transaction({
 				'type': type,
 				'description': description,
 				'amount': amount,
 				'category': category
 			});
+			this.collection.add(newTransaction);
 		}
 	});
 	/**
@@ -107,7 +126,7 @@
 			var transactionsCollection = new FT.Collections.Transactions();	//transaction collection
 			transactionsCollection.add(transactionModel);
 			var transactionsView = new FT.Views.Transactions({collection: transactionsCollection});
-			$('body').html(transactionsView.el);
+			$('body').html(transactionsView.render().el);
 		}
 	});
 	new FT.Router
